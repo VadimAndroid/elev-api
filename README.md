@@ -1,118 +1,97 @@
 # elev-api
 
-Inngangen til elev-systemet. En Spring Boot-tjeneste i Kotlin som tar imot forespørsler fra klienten, sender nye elever til **Kafka** og henter elever fra [elev-service](https://github.com/VadimAndroid/elev-service) over **HTTP**.
+[![CI](https://github.com/VadimAndroid/elev-api/actions/workflows/ci.yml/badge.svg?branch=portfolio)](https://github.com/VadimAndroid/elev-api/actions/workflows/ci.yml)
 
-`elev-api` har **ingen database** og lagrer ingenting selv.
+The entry point of the **elev** system. A Spring Boot service in Kotlin that accepts requests from clients,
+publishes new students (*elever*) to **Kafka** and reads them from [elev-service](https://github.com/VadimAndroid/elev-service/tree/portfolio) over **HTTP**.
+`elev-api` has **no database**.
 
-## Rolle i systemet
+> This is the **`portfolio`** branch. The original school assignment (Norwegian README) is on `main`.
 
-Systemet består av to **mikrotjenester** i hvert sitt repository:
-
-| Tjeneste | Repository | Port | Ansvar |
-|---|---|---|---|
-| **elev-api** | dette | 8080 | Eneste inngang for klienten. Validerer, genererer ID, sender til Kafka, henter fra `elev-service`. |
-| elev-service | [VadimAndroid/elev-service](https://github.com/VadimAndroid/elev-service) | 8081 | Leser elever fra Kafka og lagrer dem i en database. Tilbyr GET-endepunkter. |
-| Kafka | `docker-compose.yaml` i dette repoet | 9092 | Meldingskø mellom tjenestene. |
-
-```
-Opprette elev (asynkront):
-Klient ──HTTP POST──▶ elev-api ──Kafka (topic "elever")──▶ elev-service ──▶ database
-
-Hente elever (synkront):
-Klient ──HTTP GET───▶ elev-api ──HTTP GET──▶ elev-service ──▶ database
-```
-
-Tjenestene deler **ingen kode**. Hver har sin egen `Elev`-klasse. Det eneste som binder dem sammen, er **kontrakten** under.
-
-## Kontrakt med elev-service
-
-### Kafka (elev-api sender)
-
-| | |
+| Repository | Role |
 |---|---|
-| Topic | `elever` |
-| Nøkkel | elevens ID (UUID som tekst) |
-| Verdi | JSON: `{ "id": "<uuid>", "navn": "<tekst>", "klasse": "<tekst>" }` |
+| **elev-api** (this) | entry point for clients, port 8080 |
+| [elev-service](https://github.com/VadimAndroid/elev-service/tree/portfolio) | stores students in PostgreSQL, port 8081 |
+| [elev-infra](https://github.com/VadimAndroid/elev-infra) | `docker-compose.yaml` for Kafka, PostgreSQL and both services, architecture overview |
 
-### HTTP (elev-api kaller)
+## Tech stack
 
-| Kall | Forventet svar fra elev-service |
-|---|---|
-| `GET {elev.service.url}/elever` | `200` med JSON-liste |
-| `GET {elev.service.url}/elever/{id}` | `200` med eleven, eller `404` |
+Kotlin 2.3 · Java 25 · Spring Boot 4.1 · Spring Web MVC · Spring Kafka · Bean Validation · RestClient ·
+Spring Boot Actuator · JUnit 5 · MockMvc · Mockito · Docker · GitHub Actions
 
-## Endepunkter
+## API
 
-| Metode | Sti | Svar |
+| Method | Path | Response |
+|--------|------|----------|
+| POST | `/elever` | `202` with the student (incl. id) · `400` if `navn`/`klasse` is blank · `503` if Kafka fails |
+| GET | `/elever` | `200` with a list (possibly `[]`) · `503` if `elev-service` is down |
+| GET | `/elever/{id}` | `200` · `404` if not found · `503` if `elev-service` is down |
+| GET | `/actuator/health` | `200` `{"status":"UP"}` |
+
+Request body: `{ "navn": "Ola Nordmann", "klasse": "10A" }`
+
+## Contract with elev-service
+
+| Channel | Direction | Details |
 |---|---|---|
-| POST | `/elever` | `202` med eleven (inkl. ID) · `400` ved tomt navn/klasse · `503` hvis Kafka feiler |
-| GET | `/elever` | `200` med liste (eventuelt `[]`) · `503` hvis `elev-service` er nede |
-| GET | `/elever/{id}` | `200` med eleven · `404` hvis den ikke finnes · `503` hvis `elev-service` er nede |
+| Kafka topic `elever` | elev-api → elev-service | key: student id (UUID as text) · value: `{"id":"<uuid>","navn":"<text>","klasse":"<text>"}` |
+| HTTP `GET {ELEV_SERVICE_URL}/elever[/{id}]` | elev-api → elev-service | `200` with JSON, or `404` |
 
-Eksempel på body for POST:
+The services share **no code**. Each has its own `Elev` class; only the JSON format binds them.
 
-```json
-{ "navn": "Ola Nordmann", "klasse": "10A" }
-```
+## How it works
 
-## Kafka vs. HTTP
+- **Create is asynchronous.** `POST /elever` validates the input (`@Valid`, `@NotBlank`), generates a UUID, trims the values and
+  publishes the student as JSON with the id as the message key. It waits until Kafka **acknowledges** the record,
+  then returns **202 Accepted**: the student is accepted, but maybe not stored yet. If Kafka does not answer within
+  5 seconds (`max.block.ms`), the response is **503** with an error message.
+- **Read is synchronous.** `GET` calls `elev-service` with `RestClient`. A `404` from `elev-service` becomes `404` here.
+  If `elev-service` cannot be reached, the response is **503**, not an empty list, because an empty list would be wrong information.
 
-**Opprettelse går over Kafka (asynkront).** `POST /elever` validerer `navn` og `klasse`, genererer en unik ID og publiserer eleven som JSON på topicen `elever`, med ID-en som meldingsnøkkel. `elev-api` svarer først når Kafka har bekreftet mottak. `elev-api` trenger ikke at `elev-service` kjører akkurat nå – meldingen venter i Kafka.
+## Configuration
 
-Derfor svarer POST med **202 Accepted** og ikke 201 Created: eleven er sendt til behandling, men ikke nødvendigvis lagret ennå. En GET rett etter POST kan gi 404 et kort øyeblikk.
+| Variable | Local default | In Docker |
+|----------|---------------|-----------|
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | `kafka:29092` |
+| `ELEV_SERVICE_URL` | `http://localhost:8081` | `http://elev-service:8081` |
 
-**Henting går over HTTP (synkront).** Klienten trenger svaret med en gang. Hvis `elev-service` svarer 404, svarer `elev-api` også 404. Hvis `elev-service` ikke svarer, returnerer `elev-api` **503 Service Unavailable** – ikke en tom liste, fordi en tom liste ville vært feil informasjon.
+## Running
 
-## Konfigurasjon
-
-`src/main/resources/application.properties`:
-
-```properties
-spring.kafka.bootstrap-servers=localhost:9092
-spring.kafka.producer.properties.max.block.ms=5000
-elev.kafka.topic=elever
-elev.service.url=http://localhost:8081
-```
-
-`max.block.ms=5000` gjør at POST feiler etter 5 sekunder (og gir 503) hvis Kafka ikke svarer, i stedet for å vente i 60 sekunder.
-
-## Kjøre
-
-**Forutsetninger:** Java 25, Docker Desktop.
-
-**1. Start Kafka** (fra dette repoet):
-
-```bash
-docker compose up -d
-docker ps          # kafka skal ha status "Up"
-```
-
-**2. Start elev-service** – se README i [elev-service](https://github.com/VadimAndroid/elev-service). Uten den fungerer POST, men GET gir 503.
-
-**3. Start elev-api:**
+Start Kafka from [elev-infra](https://github.com/VadimAndroid/elev-infra) (`docker compose up -d`), start `elev-service`, then:
 
 ```bash
 ./gradlew bootRun
 ```
 
-eller ▶ ved `fun main` i `ElevApiApplication.kt` i IntelliJ.
+or ▶ next to `fun main` in `ElevApiApplication.kt`. `requests.http` contains ready-made requests for IntelliJ.
+To run everything in Docker, see [elev-infra](https://github.com/VadimAndroid/elev-infra).
 
-**Stoppe:** `Ctrl + C`, og `docker compose down` for Kafka.
+## Tests
 
-## Teste
+```bash
+./gradlew test
+```
 
-- **IntelliJ:** åpne `requests.http` og trykk ▶ ved hver forespørsel, ovenfra og ned.
-- **Enhetstester:** `./gradlew test`
+Web layer tests with `@WebMvcTest` and Mockito mocks: `202` (and input is trimmed) · `400` and nothing sent to Kafka ·
+`503` when Kafka fails · `200` · `404` · `503` when `elev-service` is down.
 
-## Struktur
+## Docker image
+
+Multi-stage `Dockerfile`: the jar is built with Gradle in `eclipse-temurin:25-jdk` and runs in the smaller
+`eclipse-temurin:25-jre` as a non-root user.
+
+## CI
+
+`.github/workflows/ci.yml` runs `./gradlew test` on every push and pull request, and then checks that the Docker image builds.
+
+## Structure
 
 ```
 src/main/kotlin/com/example/elev_api/
-├── ElevApiApplication.kt
-├── client/ElevServiceClient.kt   – HTTP-kall til elev-service (RestClient)
-├── controller/ElevController.kt  – endepunktene, 202 / 404 / 503
-├── kafka/ElevProducer.kt         – sender eleven til Kafka og venter på bekreftelse
+├── client/ElevServiceClient.kt   – HTTP calls to elev-service (RestClient)
+├── controller/ElevController.kt  – endpoints, 202 / 404 / 503
+├── kafka/ElevProducer.kt         – publishes to Kafka and waits for the ack
 ├── model/Elev.kt
-├── model/OpprettElevRequest.kt   – det klienten sender inn (@NotBlank)
-└── service/ElevService.kt        – lager UUID, trimmer, velger Kafka eller HTTP
+├── model/OpprettElevRequest.kt   – request body with @NotBlank
+└── service/ElevService.kt        – UUID, trim, Kafka for create, HTTP for read
 ```

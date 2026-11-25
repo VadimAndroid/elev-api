@@ -1,8 +1,8 @@
-### Trykk ▶ ved en forespørsel for å kjøre den. Forespørslene er skilt med ###.
-### Kjør dem ovenfra og ned: POST lagrer den nye ID-en i {{elevId}}.
-### Kafka og elev-service må kjøre.
+### Click ▶ next to a request to run it. Requests are separated by ###.
+### Run them from top to bottom: the POST saves the new id in {{elevId}}.
+### Kafka (elev-infra) and elev-service must be running.
 
-### 1. Opprett elev -> 202 Accepted
+### 1. Create a student -> 202 Accepted
 POST http://localhost:8080/elever
 Content-Type: application/json
 
@@ -13,19 +13,19 @@ Content-Type: application/json
 
 > {%
     client.global.set("elevId", response.body.id);
-    client.test("Status er 202", () => client.assert(response.status === 202));
+    client.test("Status is 202", () => client.assert(response.status === 202));
 %}
 
-### 2. Hent alle elever -> 200
+### 2. Get all students -> 200
 GET http://localhost:8080/elever
 
-### 3. Hent eleven fra forespørsel 1 -> 200
+### 3. Get the student created in request 1 -> 200
 GET http://localhost:8080/elever/{{elevId}}
 
-### 4. Ukjent ID -> 404
+### 4. Unknown id -> 404
 GET http://localhost:8080/elever/00000000-0000-0000-0000-000000000000
 
-### 5. Tomt navn -> 400
+### 5. Blank name -> 400
 POST http://localhost:8080/elever
 Content-Type: application/json
 
@@ -34,14 +34,8 @@ Content-Type: application/json
   "klasse": "10A"
 }
 
-### 6. Klasse med bare mellomrom -> 400
-POST http://localhost:8080/elever
-Content-Type: application/json
-
-{
-  "navn": "Kari Hansen",
-  "klasse": "   "
-}
-
-### 7. Stopp elev-service og kjør denne -> 503
+### 6. Stop elev-service and run this -> 503
 GET http://localhost:8080/elever
+
+### 7. Health
+GET http://localhost:8080/actuator/health
