@@ -1,10 +1,5 @@
-package com.example.elev_api
+package com.example.elevapi
 
-import com.example.elev_api.client.ElevServiceClient
-import com.example.elev_api.controller.ElevController
-import com.example.elev_api.kafka.ElevProducer
-import com.example.elev_api.model.Elev
-import com.example.elev_api.service.ElevService
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito

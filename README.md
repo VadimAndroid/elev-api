@@ -16,7 +16,7 @@ publishes new students (*elever*) to **Kafka** and reads them from [elev-service
 
 ## Tech stack
 
-Kotlin 2.3 · Java 25 · Spring Boot 4.1 · Spring Web MVC · Spring Kafka · Bean Validation · RestClient ·
+Kotlin 2.3 · Java 25 · Spring Boot 4.1 · ktlint · Spring Web MVC · Spring Kafka · Bean Validation · RestClient ·
 Spring Boot Actuator · JUnit 5 · MockMvc · Mockito · Docker · GitHub Actions
 
 ## API
@@ -84,14 +84,29 @@ Multi-stage `Dockerfile`: the jar is built with Gradle in `eclipse-temurin:25-jd
 
 `.github/workflows/ci.yml` runs `./gradlew test` on every push and pull request, and then checks that the Docker image builds.
 
+## Code style (ktlint)
+
+Checked with [ktlint](https://pinterest.github.io/ktlint/) 1.8 through the Gradle plugin `org.jlleitschuh.gradle.ktlint`.
+Rules are in `.editorconfig` (style `intellij_idea`, the same as *Reformat Code* in IntelliJ).
+
+```bash
+./gradlew ktlintCheck    # report violations
+./gradlew ktlintFormat   # fix what can be fixed automatically
+```
+
+`./gradlew build` runs `ktlintCheck` as part of `check`.
+
 ## Structure
 
+The service is small, so all classes are in one package:
+
 ```
-src/main/kotlin/com/example/elev_api/
-├── client/ElevServiceClient.kt   – HTTP calls to elev-service (RestClient)
-├── controller/ElevController.kt  – endpoints, 202 / 404 / 503
-├── kafka/ElevProducer.kt         – publishes to Kafka and waits for the ack
-├── model/Elev.kt
-├── model/OpprettElevRequest.kt   – request body with @NotBlank
-└── service/ElevService.kt        – UUID, trim, Kafka for create, HTTP for read
+src/main/kotlin/com/example/elevapi/
+├── ElevApiApplication.kt
+├── ElevController.kt     – endpoints, 202 / 404 / 503
+├── ElevService.kt        – UUID, trim, Kafka for create, HTTP for read
+├── ElevProducer.kt       – publishes to Kafka and waits for the ack
+├── ElevServiceClient.kt  – HTTP calls to elev-service (RestClient)
+├── Elev.kt
+└── OpprettElevRequest.kt – request body with @NotBlank
 ```
