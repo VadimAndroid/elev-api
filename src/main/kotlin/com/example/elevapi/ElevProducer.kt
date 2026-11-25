@@ -1,6 +1,5 @@
-package com.example.elev_api.kafka
+package com.example.elevapi
 
-import com.example.elev_api.model.Elev
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate

@@ -1,6 +1,5 @@
-package com.example.elev_api.client
+package com.example.elevapi
 
-import com.example.elev_api.model.Elev
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException

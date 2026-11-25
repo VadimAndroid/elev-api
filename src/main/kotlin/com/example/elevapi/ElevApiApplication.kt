@@ -1,4 +1,4 @@
-package com.example.elev_api
+package com.example.elevapi
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class ElevApiApplication
 
 fun main(args: Array<String>) {
-	runApplication<ElevApiApplication>(*args)
+    runApplication<ElevApiApplication>(*args)
 }

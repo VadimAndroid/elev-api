@@ -1,9 +1,5 @@
-package com.example.elev_api.service
+package com.example.elevapi
 
-import com.example.elev_api.client.ElevServiceClient
-import com.example.elev_api.kafka.ElevProducer
-import com.example.elev_api.model.Elev
-import com.example.elev_api.model.OpprettElevRequest
 import org.springframework.stereotype.Service
 import java.util.UUID
 

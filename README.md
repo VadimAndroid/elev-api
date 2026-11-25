@@ -104,15 +104,29 @@ eller ▶ ved `fun main` i `ElevApiApplication.kt` i IntelliJ.
 - **IntelliJ:** åpne `requests.http` og trykk ▶ ved hver forespørsel, ovenfra og ned.
 - **Enhetstester:** `./gradlew test`
 
+## Kodestil (ktlint)
+
+Koden sjekkes med [ktlint](https://pinterest.github.io/ktlint/) via Gradle-pluginen `org.jlleitschuh.gradle.ktlint`.
+Reglene ligger i `.editorconfig` (stilen `intellij_idea`, samme som *Reformat Code* i IntelliJ).
+
+```bash
+./gradlew ktlintCheck    # viser feil
+./gradlew ktlintFormat   # retter det som kan rettes automatisk
+```
+
+`./gradlew build` kjører `ktlintCheck` automatisk.
+
 ## Struktur
 
+Tjenesten er liten, så alle klassene ligger i én pakke:
+
 ```
-src/main/kotlin/com/example/elev_api/
+src/main/kotlin/com/example/elevapi/
 ├── ElevApiApplication.kt
-├── client/ElevServiceClient.kt   – HTTP-kall til elev-service (RestClient)
-├── controller/ElevController.kt  – endepunktene, 202 / 404 / 503
-├── kafka/ElevProducer.kt         – sender eleven til Kafka og venter på bekreftelse
-├── model/Elev.kt
-├── model/OpprettElevRequest.kt   – det klienten sender inn (@NotBlank)
-└── service/ElevService.kt        – lager UUID, trimmer, velger Kafka eller HTTP
+├── ElevController.kt     – endepunktene, 202 / 404 / 503
+├── ElevService.kt        – lager UUID, trimmer, velger Kafka eller HTTP
+├── ElevProducer.kt       – sender eleven til Kafka og venter på bekreftelse
+├── ElevServiceClient.kt  – HTTP-kall til elev-service (RestClient)
+├── Elev.kt
+└── OpprettElevRequest.kt – det klienten sender inn (@NotBlank)
 ```
